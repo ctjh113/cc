@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>匿名留言板</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        #postsContainer {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .post-card {
+            background: rgba(255, 255, 255, 0.95);
+            border: none;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .post-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .post-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid rgba(238, 238, 238, 0.5);
+        }
+
+        .post-header h3 {
+            color: #2c3e50;
+            font-size: 1.3em;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .post-content {
+            color: #34495e;
+            margin-bottom: 20px;
+            font-size: 1.15em;
+            line-height: 1.9;
+            letter-spacing: 0.3px;
+            flex-grow: 1;
+        }
+
+        .post-time {
+            color: #7f8c8d;
+            font-size: 0.95em;
+            font-weight: 500;
+            padding: 6px 12px;
+            background: rgba(236, 240, 241, 0.6);
+            border-radius: 20px;
+        }
+
+        .post-media {
+            width: 100%;
+            max-width: 600px;
+            margin: 15px auto;
+            display: block;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .post-media:hover {
+            transform: scale(1.02);
+        }
+
+        video.post-media {
+            background-color: #000;
+        }
+
+        .post-actions {
+            margin-top: auto;
+            text-align: right;
+        }
+
+        .download-btn {
+            background: linear-gradient(45deg, #605feb, #8c7ae6);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(96, 95, 235, 0.3);
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(96, 95, 235, 0.4);
+        }
+
+        .loading, .error-message, .no-posts {
+            text-align: center;
+            padding: 30px;
+            font-size: 1.2em;
+            color: #7f8c8d;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            
+            #postsContainer {
+                grid-template-columns: 1fr;
+            }
+
+            .post-card {
+                padding: 20px;
+            }
+
+            .post-header h3 {
+                font-size: 1.1em;
+            }
+
+            .post-time {
+                font-size: 0.85em;
+            }
+
+            .post-content {
+                font-size: 1em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="postsContainer"></div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAvviywFxU5-Ia23Hqsl_3ItrsxF6oYLqA",
+            authDomain: "ctjh-84ffc.firebaseapp.com",
+            projectId: "ctjh-84ffc",
+            storageBucket: "ctjh-84ffc.appspot.com",
+            messagingSenderId: "81707489957",
+            appId: "1:81707489957:web:f8c441380b528d77018b4c",
+            measurementId: "G-NM1KMK8HT9"
+        };
+        // 初始化 Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // 獲取並顯示留言
+        async function loadPosts() {
+            const postsContainer = document.getElementById('postsContainer');
+            postsContainer.innerHTML = '<div class="loading">載入中<span class="loading-dots">...</span></div>';
+
+            try {
+                const querySnapshot = await db.collection('posts')
+                    .orderBy('createdAt', 'desc')
+                    .get();
+
+                if (querySnapshot.empty) {
+                    postsContainer.innerHTML = '<div class="no-posts">目前還沒有留言</div>';
+                } else {
+                    postsContainer.innerHTML = '';
+                    querySnapshot.forEach(doc => {
+                        const postData = doc.data();
+                        const postElement = document.createElement('div');
+                        postElement.className = 'post-card';
+                        
+                        const timestamp = postData.createdAt.toDate();
+                        const formattedDate = timestamp.toLocaleString('zh-TW', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                        
+                        postElement.innerHTML = `
+                            <div class="post-header">
+                                <h3>📝 匿名留言</h3>
+                                <span class="post-time">🕒 ${formattedDate}</span>
+                            </div>
+                            <div class="post-content">${postData.content}</div>
+                            ${postData.mediaUrls ? postData.mediaUrls.map(url => {
+                                if (url.type === 'image') {
+                                    return `<img src="${url.url}" alt="留言圖片" class="post-media" loading="lazy">`;
+                                } else if (url.type === 'video') {
+                                    return `<video controls class="post-media" preload="metadata">
+                                                <source src="${url.url}" type="video/mp4">
+                                                您的瀏覽器不支持視頻標籤。
+                                            </video>`;
+                                } else if (url.type === 'gif') {
+                                    return `<img src="${url.url}" alt="留言GIF" class="post-media" loading="lazy">`;
+                                }
+                            }).join('') : ''}
+                            <div class="post-actions">
+                                <button class="download-btn" onclick="downloadPostAsImage(this)">下載圖片</button>
+                            </div>
+                        `;
+                        postsContainer.appendChild(postElement);
+                    });
+                }
+            } catch (error) {
+                console.error("載入留言時發生錯誤：", error);
+                postsContainer.innerHTML = '<div class="error-message">載入留言失敗，請稍後再試</div>';
+            }
+        }
+        async function downloadPostAsImage(button) {
+            const postCard = button.closest('.post-card');
+            
+            // 檢查是否有附加圖片或照片
+            const mediaElements = postCard.querySelectorAll('img, video');
+            if (mediaElements.length > 0) {
+                // 如果有附加媒體，直接下載所有媒體
+                mediaElements.forEach(async (mediaElement, index) => {
+                    const mediaUrl = mediaElement.src;
+                    const response = await fetch(mediaUrl);
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `附加媒體_${index + 1}${getFileExtension(mediaUrl)}`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(url);
+                });
+            }
+            
+            // 生成並下載模板圖片
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 800;
+            canvas.height = 600;
+            
+            // 載入背景圖片
+            const backgroundImage = new Image();
+            backgroundImage.src = '匿名江翠.png';
+            await new Promise((resolve) => {
+                backgroundImage.onload = resolve;
+            });
+            ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+            
+            // 設置文字樣式
+            ctx.font = 'bold 28px Arial, "Noto Sans TC", sans-serif';
+            ctx.fillStyle = '#000000';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // 獲取匿名內容
+            const content = postCard.querySelector('.post-content').textContent;
+            
+            // 文字換行處理
+            const maxWidth = 700;
+            const lineHeight = 40;
+            let x = canvas.width / 2;
+            
+            // 改進的文字換行處理
+            let lines = [];
+            let words = content.split('');
+            let currentLine = '';
+            
+            // 根據字數動態調整字體大小
+            let fontSize = 28;
+            if (content.length < 20) {
+                fontSize = 48;
+            } else if (content.length < 50) {
+                fontSize = 36;
+            }
+            ctx.font = `bold ${fontSize}px Arial, "Noto Sans TC", sans-serif`;
+            
+            // 逐字檢查並換行
+            for (let i = 0; i < words.length; i++) {
+                let testLine = currentLine + words[i];
+                let metrics = ctx.measureText(testLine);
+                let testWidth = metrics.width;
+                
+                if (testWidth > maxWidth && i > 0) {
+                    lines.push(currentLine);
+                    currentLine = words[i];
+                } else {
+                    currentLine = testLine;
+                }
+            }
+            lines.push(currentLine);
+            
+            // 計算總高度並調整起始位置
+            const totalHeight = lines.length * lineHeight;
+            const topMargin = 100;
+            const bottomMargin = 150;
+            let startY = Math.max(topMargin, (canvas.height - totalHeight) / 2);
+            
+            // 確保文字不會超出底部
+            if (startY + totalHeight > canvas.height - bottomMargin) {
+                startY = canvas.height - bottomMargin - totalHeight;
+            }
+            
+            // 繪製文字
+            lines.forEach((line, index) => {
+                const currentY = startY + index * lineHeight;
+                ctx.fillText(line, x, currentY);
+            });
+            
+            // 將 canvas 轉換為圖片並下載
+            canvas.toBlob(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `匿名留言.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+            }, 'image/png');
+        }
+
+        // 輔助函數：獲取文件擴展名
+        function getFileExtension(url) {
+            return url.split('.').pop().split(/\#|\?/)[0];
+        }
+        // 頁面載入時顯示留言
+        loadPosts();
+    </script>
+</body>
+</html>

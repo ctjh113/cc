@@ -272,6 +272,8 @@
                 `<button class="approve-btn" onclick="approvePost('${docId}')">批准</button>
                  <button class="delete-btn" onclick="deletePost('${docId}')">刪除</button>`;
 
+            const publishedStatus = postData.published ? '已發布' : '未發布';
+
             postElement.innerHTML = `
                 <div class="post-header">
                     <h3>📝 匿名留言</h3>
@@ -291,9 +293,10 @@
                     }
                 }).join('') : ''}
                 <div class="post-actions">
-                    <button class="download-btn" onclick="downloadPostAsImage(this)">下載圖片</button>
+                    <button class="download-btn" onclick="downloadPostAsImage(this, '${docId}')">下載圖片</button>
                     ${actionButtons}
                 </div>
+                <div class="post-status">${publishedStatus}</div>
             `;
             return postElement;
         }
@@ -324,7 +327,7 @@
             }
         }
 
-        async function downloadPostAsImage(button) {
+        async function downloadPostAsImage(button, docId) {
             const postCard = button.closest('.post-card');
             
             // 檢查是否有附加圖片或照片
@@ -366,8 +369,12 @@
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
-            // 獲取匿名內容
+            // 獲取匿名內容和時間
             const content = postCard.querySelector('.post-content').textContent;
+            const postTime = postCard.querySelector('.post-time').textContent.replace('🕒 ', '');
+            
+            // 取得目前的編號
+            const currentNumber = await getCurrentPostNumber();
             
             // 文字換行處理
             const maxWidth = 700;
@@ -419,24 +426,102 @@
                 const currentY = startY + index * lineHeight;
                 ctx.fillText(line, x, currentY);
             });
+
+            // 繪製時間
+            ctx.font = 'bold 20px Arial, "Noto Sans TC", sans-serif';
+            ctx.fillStyle = '#fffff'; // 設置時間文字顏色
+            ctx.textAlign = 'right'; // 設置時間文字對齊方式
+            ctx.fillText(postTime, canvas.width - 20, canvas.height - 50); // 調整時間文字位置
             
             // 將 canvas 轉換為圖片並下載
             canvas.toBlob(blob => {
                 const url = window.URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `匿名留言.png`;
+                link.download = `匿名留言_${currentNumber}.png`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
                 window.URL.revokeObjectURL(url);
             }, 'image/png');
+
+            // 更新資料庫，標記為已發布
+            try {
+                await db.collection('posts').doc(docId).update({
+                    published: true,
+                    postNumber: currentNumber
+                });
+                console.log("已成功標記為已發布");
+            } catch (error) {
+                console.error("標記為已發布時發生錯誤：", error);
+            }
         }
 
         // 輔助函數：獲取文件擴展名
         function getFileExtension(url) {
             return url.split('.').pop().split(/\#|\?/)[0];
         }
+
+        async function getCurrentPostNumber() {
+            try {
+                const snapshot = await db.collection('posts')
+                    .where('published', '==', true)
+                    .orderBy('createdAt', 'asc')  // 改用 createdAt 而不是 timestamp
+                    .get();
+                
+                if (snapshot.empty) {
+                    return 1;
+                }
+
+                // 獲取所有已發布的貼文並按時間排序
+                const posts = snapshot.docs.map((doc, index) => {
+                    return {
+                        id: doc.id,
+                        number: index + 1,
+                        ...doc.data()
+                    };
+                });
+
+                // 找出最大的編號
+                const maxNumber = posts.length;
+                return maxNumber + 1;
+                
+            } catch (error) {
+                if (error.code === 'failed-precondition') {
+                    console.error("查詢需要索引。您可以在此處創建它： https://console.firebase.google.com/v1/r/project/ctjh-84ffc/firestore/indexes?create_composite=Ckhwcm9qZWN0cy9jdGpoLTg0ZmZjL2RhdGFiYXNlcy8oZGVmYXVsdCkvY29sbGVjdGlvbkdyb3Vwcy9wb3N0cy9pbmRleGVzL18QARoNCglwdWJsaXNoZWQQARoNCgljcmVhdGVkQXQQARoMCghfX25hbWVfXxAB");
+                } else {
+                    console.error("獲取貼文編號時發生錯誤：", error);
+                }
+                return 1;
+            }
+        }
+
+        // 實時監聽留言變化
+        db.collection('posts').orderBy('createdAt', 'desc')
+            .onSnapshot(snapshot => {
+                const pendingContainer = document.getElementById('pendingPostsContainer');
+                const approvedContainer = document.getElementById('approvedPostsContainer');
+                
+                pendingContainer.innerHTML = '';
+                approvedContainer.innerHTML = '';
+
+                if (snapshot.empty) {
+                    pendingContainer.innerHTML = '<div class="no-posts">目前還沒有待審核留言</div>';
+                    approvedContainer.innerHTML = '<div class="no-posts">目前還沒有已批准留言</div>';
+                } else {
+                    snapshot.forEach(doc => {
+                        const postData = doc.data();
+                        const postElement = createPostElement(doc.id, postData);
+                        
+                        if (postData.approved) {
+                            approvedContainer.appendChild(postElement);
+                        } else {
+                            pendingContainer.appendChild(postElement);
+                        }
+                    });
+                }
+            });
+
         // 頁面載入時顯示留言
         loadPosts();
     </script>

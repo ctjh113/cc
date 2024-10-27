@@ -24,7 +24,18 @@
             min-height: 100vh;
         }
 
-        #postsContainer {
+        .section-title {
+            text-align: center;
+            font-size: 1.8em;
+            color: #2c3e50;
+            margin: 20px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+        }
+
+        #pendingPostsContainer,
+        #approvedPostsContainer {
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
@@ -106,23 +117,43 @@
         .post-actions {
             margin-top: auto;
             text-align: right;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
         }
 
-        .download-btn {
-            background: linear-gradient(45deg, #605feb, #8c7ae6);
-            color: white;
-            border: none;
+        .download-btn,
+        .approve-btn,
+        .delete-btn {
             padding: 10px 20px;
             border-radius: 25px;
             font-size: 1em;
             cursor: pointer;
             transition: all 0.3s ease;
+            border: none;
+            color: white;
+        }
+
+        .download-btn {
+            background: linear-gradient(45deg, #605feb, #8c7ae6);
             box-shadow: 0 4px 15px rgba(96, 95, 235, 0.3);
         }
 
-        .download-btn:hover {
+        .approve-btn {
+            background: linear-gradient(45deg, #27ae60, #2ecc71);
+            box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+        }
+
+        .delete-btn {
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+        }
+
+        .download-btn:hover,
+        .approve-btn:hover,
+        .delete-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(96, 95, 235, 0.4);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
         }
 
         .loading, .error-message, .no-posts {
@@ -141,7 +172,8 @@
                 padding: 10px;
             }
             
-            #postsContainer {
+            #pendingPostsContainer,
+            #approvedPostsContainer {
                 grid-template-columns: 1fr;
             }
 
@@ -164,7 +196,11 @@
     </style>
 </head>
 <body>
-    <div id="postsContainer"></div>
+    <h2 class="section-title">待審核留言</h2>
+    <div id="pendingPostsContainer"></div>
+    
+    <h2 class="section-title">已批准留言</h2>
+    <div id="approvedPostsContainer"></div>
 
     <script>
         const firebaseConfig = {
@@ -182,62 +218,112 @@
 
         // 獲取並顯示留言
         async function loadPosts() {
-            const postsContainer = document.getElementById('postsContainer');
-            postsContainer.innerHTML = '<div class="loading">載入中<span class="loading-dots">...</span></div>';
+            const pendingContainer = document.getElementById('pendingPostsContainer');
+            const approvedContainer = document.getElementById('approvedPostsContainer');
+            
+            pendingContainer.innerHTML = '<div class="loading">載入中...</div>';
+            approvedContainer.innerHTML = '<div class="loading">載入中...</div>';
 
             try {
                 const querySnapshot = await db.collection('posts')
                     .orderBy('createdAt', 'desc')
                     .get();
 
+                pendingContainer.innerHTML = '';
+                approvedContainer.innerHTML = '';
+
                 if (querySnapshot.empty) {
-                    postsContainer.innerHTML = '<div class="no-posts">目前還沒有留言</div>';
+                    pendingContainer.innerHTML = '<div class="no-posts">目前還沒有待審核留言</div>';
+                    approvedContainer.innerHTML = '<div class="no-posts">目前還沒有已批准留言</div>';
                 } else {
-                    postsContainer.innerHTML = '';
                     querySnapshot.forEach(doc => {
                         const postData = doc.data();
-                        const postElement = document.createElement('div');
-                        postElement.className = 'post-card';
+                        const postElement = createPostElement(doc.id, postData);
                         
-                        const timestamp = postData.createdAt.toDate();
-                        const formattedDate = timestamp.toLocaleString('zh-TW', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        });
-                        
-                        postElement.innerHTML = `
-                            <div class="post-header">
-                                <h3>📝 匿名留言</h3>
-                                <span class="post-time">🕒 ${formattedDate}</span>
-                            </div>
-                            <div class="post-content">${postData.content}</div>
-                            ${postData.mediaUrls ? postData.mediaUrls.map(url => {
-                                if (url.type === 'image') {
-                                    return `<img src="${url.url}" alt="留言圖片" class="post-media" loading="lazy">`;
-                                } else if (url.type === 'video') {
-                                    return `<video controls class="post-media" preload="metadata">
-                                                <source src="${url.url}" type="video/mp4">
-                                                您的瀏覽器不支持視頻標籤。
-                                            </video>`;
-                                } else if (url.type === 'gif') {
-                                    return `<img src="${url.url}" alt="留言GIF" class="post-media" loading="lazy">`;
-                                }
-                            }).join('') : ''}
-                            <div class="post-actions">
-                                <button class="download-btn" onclick="downloadPostAsImage(this)">下載圖片</button>
-                            </div>
-                        `;
-                        postsContainer.appendChild(postElement);
+                        if (postData.approved) {
+                            approvedContainer.appendChild(postElement);
+                        } else {
+                            pendingContainer.appendChild(postElement);
+                        }
                     });
                 }
             } catch (error) {
                 console.error("載入留言時發生錯誤：", error);
-                postsContainer.innerHTML = '<div class="error-message">載入留言失敗，請稍後再試</div>';
+                pendingContainer.innerHTML = '<div class="error-message">載入留言失敗，請稍後再試</div>';
+                approvedContainer.innerHTML = '<div class="error-message">載入留言失敗，請稍後再試</div>';
             }
         }
+
+        function createPostElement(docId, postData) {
+            const postElement = document.createElement('div');
+            postElement.className = 'post-card';
+            
+            const timestamp = postData.createdAt.toDate();
+            const formattedDate = timestamp.toLocaleString('zh-TW', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            const actionButtons = postData.approved ? 
+                `<button class="delete-btn" onclick="deletePost('${docId}')">刪除</button>` :
+                `<button class="approve-btn" onclick="approvePost('${docId}')">批准</button>
+                 <button class="delete-btn" onclick="deletePost('${docId}')">刪除</button>`;
+
+            postElement.innerHTML = `
+                <div class="post-header">
+                    <h3>📝 匿名留言</h3>
+                    <span class="post-time">🕒 ${formattedDate}</span>
+                </div>
+                <div class="post-content">${postData.content}</div>
+                ${postData.mediaUrls ? postData.mediaUrls.map(url => {
+                    if (url.type === 'image') {
+                        return `<img src="${url.url}" alt="留言圖片" class="post-media" loading="lazy">`;
+                    } else if (url.type === 'video') {
+                        return `<video controls class="post-media" preload="metadata">
+                                    <source src="${url.url}" type="video/mp4">
+                                    您的瀏覽器不支持視頻標籤。
+                                </video>`;
+                    } else if (url.type === 'gif') {
+                        return `<img src="${url.url}" alt="留言GIF" class="post-media" loading="lazy">`;
+                    }
+                }).join('') : ''}
+                <div class="post-actions">
+                    <button class="download-btn" onclick="downloadPostAsImage(this)">下載圖片</button>
+                    ${actionButtons}
+                </div>
+            `;
+            return postElement;
+        }
+
+        // 新增批准貼文功能
+        async function approvePost(docId) {
+            try {
+                await db.collection('posts').doc(docId).update({
+                    approved: true
+                });
+                loadPosts(); // 重新載入貼文
+            } catch (error) {
+                console.error("批准貼文時發生錯誤：", error);
+                alert("批准貼文失敗，請稍後再試");
+            }
+        }
+
+        // 新增刪除貼文功能
+        async function deletePost(docId) {
+            if (confirm('確定要刪除這則留言嗎？')) {
+                try {
+                    await db.collection('posts').doc(docId).delete();
+                    loadPosts(); // 重新載入貼文
+                } catch (error) {
+                    console.error("刪除貼文時發生錯誤：", error);
+                    alert("刪除貼文失敗，請稍後再試");
+                }
+            }
+        }
+
         async function downloadPostAsImage(button) {
             const postCard = button.closest('.post-card');
             

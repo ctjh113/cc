@@ -1,0 +1,15 @@
+[
+    {
+      "origin": [
+        "http://127.0.0.1:5000",
+        "https://tmjh113.github.io/",
+        "https://tmjh113.github.io/tmjh",
+        "https://cyjh113.github.io/",
+        "https://ctjh113.github.io/ctjh113/",
+        "https://ctjh113.github.io"
+      ],
+      "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+      "maxAgeSeconds": 3600,
+      "responseHeader": ["Content-Type", "Authorization", "Content-Length", "User-Agent", "X-Requested-With"]
+    }
+  ]

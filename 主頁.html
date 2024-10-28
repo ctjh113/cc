@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>個人主頁</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <!-- Font Awesome 圖標庫 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="主頁.css">
+    
+    <!-- 添加 SVG.js 庫 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/3.1.1/svg.min.js"></script>
+    
+    <!-- 確保已經包含 html2canvas 庫 -->
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+</head>
+<body>
+    <!-- 側邊欄 -->
+    <div id="mySidebar" class="sidebar">
+        <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">×</a>
+        <a href="主頁.html"><i class="fas fa-home"></i> 主頁</a>
+        <a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> 登出</a>
+    </div>
+
+    <!-- 打開側邊欄的按鈕 -->
+    <button class="openbtn" id="openBtn" onclick="openNav()">☰ 選單</button>
+
+    <!-- 內容區域 -->
+    <div class="content" id="main">
+        <div class="user-card">
+            <div class="user-avatar" id="userAvatar" onclick="uploadAvatar()"></div>
+            <h2>歡迎回來，<span id="usernameDisplay">載入中...</span>！</h2>
+        </div>
+        <div class="feature-cards">
+            <button class="feature-card" onclick="showUnapprovedPosts()">
+                <i class="fas fa-eye-slash"></i>
+                <h3>顯示未批准的留言</h3>
+            </button>
+            <button class="feature-card" onclick="showApprovedPosts()">
+                <i class="fas fa-eye"></i>
+                <h3>顯示已批准的留言</h3>
+            </button>
+            <button class="feature-card" onclick="showAllPosts()">
+                <i class="fas fa-list"></i>
+                <h3>顯示全部貼文</h3>
+            </button>
+        </div>
+        <div class="feature-cards" id="postsContainer">
+            <!-- 留言將顯示在這裡,每個留言卡片現在會包含一個下載按鈕 -->
+        </div>
+        <button class="delete-btn" onclick="openDeleteModal()">刪除留言</button>
+    </div>
+
+    <!-- 提示框 -->
+    <div id="notification" class="notification"></div>
+
+    <!-- 隱藏的文件上傳輸入 -->
+    <input type="file" id="avatarUpload" style="display: none;" accept="image/*">
+
+
+    <!-- 刪除留言模擬框 -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeDeleteModal()">&times;</span>
+            <h2>選擇要刪除的留言</h2>
+            <div id="deletePostsContainer">
+                <!-- 留言將顯示在這裡 -->
+            </div>
+            <button class="delete-btn" onclick="deleteSelectedPosts()">刪除</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="主頁.js"></script>
+</body>
+</html>

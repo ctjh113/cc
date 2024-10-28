@@ -427,11 +427,11 @@
                 ctx.fillText(line, x, currentY);
             });
 
-            // 繪製時間
+            // 繪製時間 - 改為左上角
             ctx.font = 'bold 20px Arial, "Noto Sans TC", sans-serif';
-            ctx.fillStyle = '#fffff'; // 設置時間文字顏色
-            ctx.textAlign = 'right'; // 設置時間文字對齊方式
-            ctx.fillText(postTime, canvas.width - 20, canvas.height - 50); // 調整時間文字位置
+            ctx.fillStyle = '#000000'; // 設置時間文字顏色
+            ctx.textAlign = 'left'; // 設置時間文字對齊方式
+            ctx.fillText(postTime, 20, 30); // 調整時間文字位置到左上角
             
             // 將 canvas 轉換為圖片並下載
             canvas.toBlob(blob => {
